@@ -9,7 +9,7 @@ Regression: Weight vorhersagen
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt  # <-- NEU
+import matplotlib.pyplot as plt
 
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
@@ -17,6 +17,7 @@ from sklearn.neighbors import KNeighborsRegressor
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from utils.helpers import FEATURE_LABELS, label_col
 
 st.set_page_config(page_title="ML Prediction", page_icon="🤖", layout="wide")
 
@@ -27,7 +28,7 @@ st.markdown("---")
 DATA_PATH = "data/Final_Data_cleaned.csv"
 
 # Genau wie in deinem Notebook:
-features = ["Height", "Age", "FAF", "family_history_with_overweight", "Gender"]
+features = ["Height", "Age", "FAF", "family_history_with_overweight", "Gender", "CH2O"]
 target = "Weight"
 
 @st.cache_data
@@ -91,96 +92,87 @@ try:
     # Tab 1: Training & Evaluation
     # ------------------------------------------
     with tab1:
-        st.subheader("Model Training")
 
         # Notebook: df_model = df[features + [target]].dropna()
         df_model = df[features + [target]].dropna()
         X = df_model[features].copy()
         y = df_model[target].copy()
+        test_size = 0.2
+        st.info("**Features:** " + ", ".join([label_col(f) for f in features]) + f"\n\n**Target:** {label_col(target)}")
 
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Anzahl Samples", len(X))
-        c2.metric("Anzahl Features", X.shape[1])
-        c3.metric("Ø Weight", f"{y.mean():.2f}")
+        # Modellvergleich immer sichtbar
+        st.markdown("#### 📊 Modellvergleich (Orientierung)")
 
-        left, right = st.columns([1, 2])
+        results = compute_model_comparison(df_model, test_size)
+        st.dataframe(results, use_container_width=True)
 
-        with left:
-            st.markdown("#### Einstellungen")
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
 
-            model_choice = st.selectbox(
-                "Modell:",
-                [
-                    "Random Forest Regressor",
-                    "Linear Regression",
-                    "K-Nearest Neighbors Regressor",
-                    "Decision Tree Regressor",
-                ],
+        ax1.bar(results["Model"], results["RMSE"])
+        ax1.set_title("Modellvergleich - RMSE (niedriger = besser)")
+        ax1.set_ylabel("RMSE")
+        ax1.tick_params(axis="x", rotation=45)
+        ax1.grid(axis="y", alpha=0.3)
+
+        ax2.bar(results["Model"], results["R² Score"])
+        ax2.set_title("Modellvergleich - R² Score (höher = besser)")
+        ax2.set_ylabel("R² Score")
+        ax2.set_ylim(0, 1)
+        ax2.tick_params(axis="x", rotation=45)
+        ax2.grid(axis="y", alpha=0.3)
+        for i, v in enumerate(results["R² Score"].values):
+            ax2.text(i, v + 0.02, f"{v:.2%}", ha="center")
+
+        plt.tight_layout()
+        st.pyplot(fig)
+        st.markdown("---")
+
+        st.subheader("Model Training")
+
+        st.markdown("#### Einstellungen")
+
+        model_choice = st.selectbox(
+            "Modell:",
+            [
+                "Random Forest Regressor",
+                "Linear Regression",
+                "K-Nearest Neighbors Regressor",
+                "Decision Tree Regressor",
+            ],
+        )
+
+        train_button = st.button("🚀 Training starten", type="primary")
+        st.markdown("---")
+
+        # Dein bestehender Training-Flow bleibt gleich
+        if train_button:
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=test_size, random_state=42
             )
 
-            test_size = st.slider("Test-Set Größe:", 0.1, 0.4, 0.2, 0.05)
+            model = get_model(model_choice)
+            model.fit(X_train, y_train)
+            y_pred = model.predict(X_test)
 
-            train_button = st.button("🚀 Training starten", type="primary")
+            mse = mean_squared_error(y_test, y_pred)
+            rmse = np.sqrt(mse)
+            mae = mean_absolute_error(y_test, y_pred)
+            r2 = r2_score(y_test, y_pred)
 
-        with right:
-            # ✅ Modellvergleich immer sichtbar (ohne Button)
-            st.markdown("#### 📊 Modellvergleich (Orientierung)")
-            results = compute_model_comparison(df_model, test_size)
-            st.dataframe(results, use_container_width=True)
+            st.session_state["best_model"] = model
+            st.session_state["features"] = features
 
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
+            st.success("✅ Training abgeschlossen!")
 
-            ax1.bar(results["Model"], results["RMSE"])
-            ax1.set_title("Modellvergleich - RMSE (niedriger = besser)")
-            ax1.set_ylabel("RMSE")
-            ax1.tick_params(axis="x", rotation=45)
-            ax1.grid(axis="y", alpha=0.3)
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("MSE", f"{mse:.2f}")
+            m2.metric("RMSE", f"{rmse:.2f}")
+            m3.metric("MAE", f"{mae:.2f}")
+            m4.metric("R²", f"{r2:.2%}")
 
-            ax2.bar(results["Model"], results["R² Score"])
-            ax2.set_title("Modellvergleich - R² Score (höher = besser)")
-            ax2.set_ylabel("R² Score")
-            ax2.set_ylim(0, 1)
-            ax2.tick_params(axis="x", rotation=45)
-            ax2.grid(axis="y", alpha=0.3)
-            for i, v in enumerate(results["R² Score"].values):
-                ax2.text(i, v + 0.02, f"{v:.2%}", ha="center")
-
-            plt.tight_layout()
-            st.pyplot(fig)
-
-            # Dein bestehender Training-Flow bleibt gleich
-            if train_button:
-                with st.spinner("Trainiere Modell..."):
-                    X_train, X_test, y_train, y_test = train_test_split(
-                        X, y, test_size=test_size, random_state=42
-                    )
-
-                    model = get_model(model_choice)
-                    model.fit(X_train, y_train)
-                    y_pred = model.predict(X_test)
-
-                    mse = mean_squared_error(y_test, y_pred)
-                    rmse = np.sqrt(mse)
-                    mae = mean_absolute_error(y_test, y_pred)
-                    r2 = r2_score(y_test, y_pred)
-
-                    st.session_state["best_model"] = model
-                    st.session_state["features"] = features
-
-                    st.success("✅ Training abgeschlossen!")
-
-                    m1, m2, m3, m4 = st.columns(4)
-                    m1.metric("MSE", f"{mse:.2f}")
-                    m2.metric("RMSE", f"{rmse:.2f}")
-                    m3.metric("MAE", f"{mae:.2f}")
-                    m4.metric("R²", f"{r2:.2%}")
-
-                    st.markdown("#### Test-Set Übersicht")
-                    st.write(f"Training Set: {len(X_train)} samples")
-                    st.write(f"Test Set: {len(X_test)} samples")
-
-                    with st.expander("📋 Target-Statistik (Weight)"):
-                        st.write(y.describe())
+            st.markdown("#### Test-Set Übersicht")
+            st.write(f"Training Set: {len(X_train)} samples")
+            st.write(f"Test Set: {len(X_test)} samples")
 
     # ------------------------------------------
     # Tab 2: Vorhersage
@@ -201,18 +193,20 @@ try:
             col1, col2, col3 = st.columns(3)
 
             with col1:
-                height = st.number_input("Height (m)", min_value=0.5, max_value=2.5, value=1.83, step=0.01)
-                age = st.number_input("Age", min_value=5, max_value=120, value=25, step=1)
+                height = st.number_input(label_col("Height"), min_value=0.5, max_value=2.5, value=1.83, step=0.01)
+                age = st.number_input(label_col("Age"), min_value=5, max_value=120, value=25, step=1)
 
             with col2:
-                faf = st.number_input("FAF", min_value=0.0, max_value=10.0, value=1.0, step=0.1)
-                fam_hist = st.selectbox("family_history_with_overweight", options=[False, True], index=0)
+                faf = st.number_input(label_col("FAF"), min_value=0.0, max_value=10.0, value=1.0, step=0.1)
+                ch2o = st.number_input(label_col("CH2O"), min_value=0.0, max_value=10.0, value=2.0, step=0.1)
 
             with col3:
+                fam_hist = st.selectbox(label_col("family_history_with_overweight"), options=[False, True], index=0)
                 gender = st.selectbox(
-                    "Gender",
+                    label_col("Gender"),
                     options=[0, 1],
-                    format_func=lambda x: "Männlich (0)" if x == 0 else "Weiblich (1)"
+                    format_func=lambda x: "Weiblich (1)" if x == 1 else "Männlich (0)"
+
                 )
 
             submitted = st.form_submit_button("🔮 Vorhersage", type="primary")
@@ -224,6 +218,7 @@ try:
                 "FAF": [faf],
                 "family_history_with_overweight": [fam_hist],
                 "Gender": [gender],
+                "CH2O": [ch2o],
             })
 
             prediction = best_model.predict(new_data_raw)
@@ -232,4 +227,3 @@ try:
 except FileNotFoundError:
     st.error(f"❌ Datei nicht gefunden: `{DATA_PATH}`")
     st.info("Bitte lege deine bereinigte CSV in den `data/` Ordner und passe ggf. `DATA_PATH` an.")
-

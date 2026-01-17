@@ -30,19 +30,20 @@ def rename_for_display(df: pd.DataFrame) -> pd.DataFrame:
     """Nur für Anzeige: Kürzel -> 'Kürzel (Bedeutung)'."""
     return df.rename(columns=FEATURE_LABELS)
 
+
+
+
+
 try:
     df_raw = load_data()
     st.success(f"✅ Daten geladen: {len(df_raw)} Zeilen, {len(df_raw.columns)} Spalten")
+    df_raw["_BMI"] = df_raw["Weight"] / (df_raw["Height"] ** 2)
 
     # Quick Stats (wie beim Dozent)
     c1, c2, c3 = st.columns(3)
     c1.metric("Teilnehmende", len(df_raw))
     c2.metric("Features", df_raw.shape[1])
-
-    if "Weight" in df_raw.columns and pd.api.types.is_numeric_dtype(df_raw["Weight"]):
-        c3.metric("Ø Weight", f"{df_raw['Weight'].mean():.1f}")
-    else:
-        c3.metric("Ø Weight", "n/a")
+    c3.metric("Ø BMI", f"{df_raw['_BMI'].mean():.1f}")
 
     # Für Tabs arbeiten wir mit df (optional: später Filter)
     df = df_raw.copy()

@@ -77,9 +77,9 @@ try:
 
     if extras:
         st.info(" · ".join(extras))
-
-    with st.expander("📋 Daten-Vorschau"):
-        st.dataframe(df.head(10))
+    st.markdown("---")
+    st.markdown("### 📋 Daten-Vorschau")
+    st.dataframe(df.head(10))
 
 except FileNotFoundError:
     st.warning(f"⚠️ Datei nicht gefunden: `{DATA_PATH}`")
