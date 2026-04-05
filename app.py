@@ -7,6 +7,7 @@ Hauptseite / Home
 """
 import streamlit as st
 import pandas as pd
+import numpy as np
 
 # Page Config
 st.set_page_config(
@@ -51,8 +52,10 @@ try:
 
     # Optional: BMI berechnen (falls Height in Metern vorliegt)
     if "Height" in df.columns and "Weight" in df.columns:
-        with pd.option_context("mode.use_inf_as_na", True):
-            df["_BMI"] = df["Weight"] / (df["Height"] ** 2)
+
+
+        df = df.replace([np.inf, -np.inf], np.nan)
+        dataset_info = df.describe()
 
     col1, col2, col3, col4 = st.columns(4)
 
